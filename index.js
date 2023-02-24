@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
@@ -21,10 +22,55 @@ const client = new MongoClient(uri, {
   serverApi: ServerApiVersion.v1,
 });
 
+//jwt middleware function
+function verifyJWT(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(403).send("Unauthorized access");
+  }
+
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
+    if (err) {
+      return res.status(403).send({ message: "forbidden acccess" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+}
+
 async function run() {
   try {
+    //mongodb collections
     const productsCollection = client.db("emaJohn").collection("products");
     const categoryCollection = client.db("emaJohn").collection("category");
+    const addToCartCollection = client.db("emaJohn").collection("addToCart");
+    const allUsersCollection = client.db("emaJohn").collection("allUsers");
+
+    // jwt access token
+    app.get("/jwt", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const user = await allUsersCollection.findOne(query);
+      if (user) {
+        const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, {
+          expiresIn: "6h",
+        });
+        return res.send({ accessToken: token });
+      }
+      res.status(403).send({ accessToken: "" });
+    });
+
+    //verify admin
+    const verifyAdmin = async (req, res, next) => {
+      const decodedEmail = req.decoded.email;
+      const query = { email: decodedEmail };
+      const user = await allUsersCollection.findOne(query);
+      if (user?.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     //get products by pagination
     app.get("/products", async (req, res) => {
@@ -41,11 +87,19 @@ async function run() {
       res.send({ count, products });
     });
 
+    //get method for checking admin in useAdmin hook
+    app.get("/users/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const user = await allUsersCollection.findOne(query);
+      res.send({ isAdmin: user?.role === "admin" });
+    });
+
     //get products on limits
     app.get("/featured", async (req, res) => {
       const query = {};
       const cursor = productsCollection.find(query);
-      const services = await cursor.limit(6).toArray();
+      const services = await cursor.limit(8).toArray();
       res.send(services);
     });
 
@@ -56,14 +110,114 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/productsByIds", async (req, res) => {
-      const ids = req.body;
-      // console.log(ids);
-      const productsIds = ids.map((id) => ObjectId(id));
-      const query = { _id: { $in: productsIds } };
-      const cursor = productsCollection.find(query);
-      const products = await cursor.toArray();
-      res.send(products);
+    //get addtocart by email
+    app.get("/addtocart/:email", async (req, res) => {
+      const email = req.params.email;
+      // console.log(email);
+      const query = { email: email };
+      const result = await addToCartCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    //get users by get method
+    app.get("/allusers", async (req, res) => {
+      const user = req.body;
+      const query = {};
+      const filter = await allUsersCollection.find(query).toArray();
+      res.send(filter);
+    });
+
+    //post method for users
+
+    app.post("/allusers", async (req, res) => {
+      const user = req.body;
+      const result = await allUsersCollection.insertOne(user);
+      console.log(result);
+      res.send(result);
+    });
+
+    app.post("/addtocart", async (req, res) => {
+      const cart = req.body;
+      const result = await addToCartCollection.insertOne(cart);
+      res.send(result);
+    });
+
+    //admin role update
+    app.put("/users/admin/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await allUsersCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      console.log(result);
+      res.send(result);
+    });
+
+    //put method for verified seller
+    app.put("/users/verify/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          verified: true,
+        },
+      };
+      const result = await allUsersCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
+
+    //post for addtocart
+    app.put("/addtocart/:id", async (req, res) => {
+      const id = req.params.id;
+      const addCart = req.body;
+      const filter = { _id: new ObjectId(id) };
+      console.log(id);
+
+      // const existedProduct = await addToCartCollection.findOne(filter);
+      // console.log(existedProduct);
+
+      // if (existedProduct) {
+      //   console.log("Product already Added");
+      //   // const data = { data: "data added" };
+      //   // res.send({ data });
+      // } else {
+      //   console.log("Product  Added");
+
+      //   const result = await addToCartCollection.insertOne(addCart);
+      //   res.send(result);
+      // }
+
+      if (existingProduct) {
+        const newQuantity = existingProduct.quantity + quantity;
+        const result = await addToCartCollection.updateOne(
+          { productId: product.productId },
+          { $set: { quantity: newQuantity } }
+        );
+        console.log("Quantity updated:", result.modifiedCount);
+      } else {
+        const cartProduct = {
+          productId: product.productId,
+          name: product.name,
+          price: product.price,
+          quantity,
+          // Add any other fields you want to store
+        };
+        const result = await addToCartCollection.insertOne(addCart);
+        console.log("Product added to cart:", result.insertedId);
+      }
     });
   } finally {
   }
