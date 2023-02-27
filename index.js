@@ -179,45 +179,14 @@ async function run() {
       res.send(result);
     });
 
-    //post for addtocart
-    app.put("/addtocart/:id", async (req, res) => {
-      const id = req.params.id;
-      const addCart = req.body;
-      const filter = { _id: new ObjectId(id) };
-      console.log(id);
-
-      // const existedProduct = await addToCartCollection.findOne(filter);
-      // console.log(existedProduct);
-
-      // if (existedProduct) {
-      //   console.log("Product already Added");
-      //   // const data = { data: "data added" };
-      //   // res.send({ data });
-      // } else {
-      //   console.log("Product  Added");
-
-      //   const result = await addToCartCollection.insertOne(addCart);
-      //   res.send(result);
-      // }
-
-      if (existingProduct) {
-        const newQuantity = existingProduct.quantity + quantity;
-        const result = await addToCartCollection.updateOne(
-          { productId: product.productId },
-          { $set: { quantity: newQuantity } }
-        );
-        console.log("Quantity updated:", result.modifiedCount);
-      } else {
-        const cartProduct = {
-          productId: product.productId,
-          name: product.name,
-          price: product.price,
-          quantity,
-          // Add any other fields you want to store
-        };
-        const result = await addToCartCollection.insertOne(addCart);
-        console.log("Product added to cart:", result.insertedId);
-      }
+    //clear cart
+    app.delete("/clearcart", async (req, res) => {
+      const email = req.query.email;
+      const query = {
+        email: email,
+      };
+      const result = await addToCartCollection.deleteMany(query);
+      res.send(result);
     });
   } finally {
   }
