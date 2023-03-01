@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
+// const stripe = require("stripe")(process.env.STRIPE_KEY);
 
 app.get("/", (req, res) => {
   res.send("hello ema john");
@@ -186,6 +187,15 @@ async function run() {
         email: email,
       };
       const result = await addToCartCollection.deleteMany(query);
+      res.send(result);
+    });
+
+    //delete item from cart
+    app.delete("/deleteitem/:id", async (req, res) => {
+      const id = req.params.id;
+      // console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const result = await addToCartCollection.deleteOne(filter);
       res.send(result);
     });
   } finally {
