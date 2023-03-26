@@ -47,6 +47,7 @@ async function run() {
     const categoryCollection = client.db("emaJohn").collection("category");
     const addToCartCollection = client.db("emaJohn").collection("addToCart");
     const allUsersCollection = client.db("emaJohn").collection("allUsers");
+    const brandCollection = client.db("emaJohn").collection("brandProducts");
 
     // jwt access token
     app.get("/jwt", async (req, res) => {
@@ -88,6 +89,13 @@ async function run() {
       res.send({ count, products });
     });
 
+    //get products
+    app.get("/product", async (req, res) => {
+      const query = {};
+      const result = await brandCollection.find(query).toArray();
+      res.send(result);
+    });
+
     //get method for checking admin in useAdmin hook
     app.get("/users/admin/:email", async (req, res) => {
       const email = req.params.email;
@@ -126,6 +134,13 @@ async function run() {
       const query = {};
       const filter = await allUsersCollection.find(query).toArray();
       res.send(filter);
+    });
+
+    //post products
+    app.post("/postproduct", async (req, res) => {
+      const product = req.body;
+      const result = await brandCollection.insertOne(product);
+      res.send(result);
     });
 
     //post method for users
@@ -177,6 +192,14 @@ async function run() {
         updateDoc,
         options
       );
+      res.send(result);
+    });
+
+    //delete products
+    app.delete("/deleteprod/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await brandCollection.deleteOne(filter);
       res.send(result);
     });
 
